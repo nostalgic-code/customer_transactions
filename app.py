@@ -5,7 +5,6 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-# Your credentials & base URL
 USERNAME = "d5900938-be95-4412-95b3-50b11983e13e"
 PASSWORD = "90fa0de5-250a-4e99-bd65-85b1854d9c82"
 BASE_URL = "http://102.33.60.228:9183/getResources/customer_transactions?max=100"
@@ -21,43 +20,36 @@ def fetch_transactions():
         return []
 
 def parse_date(date_str):
-    try:
-        return datetime.strptime(date_str, "%m-%d-%Y")
-    except:
-        return None
+    for fmt in ("%m-%d-%Y", "%d %b %Y", "%H:%M:%S %d %b %Y"):
+        try:
+            return datetime.strptime(date_str, fmt)
+        except:
+            continue
+    return None
 
 def aggregate_spend_by_year(transactions):
     spend = {}
     for tx in transactions:
-        amount_str = tx.get('amount', '0').strip()
-        if not amount_str:
+        if tx.get("transaction_type") != "INV":
             continue
 
+        amount_str = tx.get('amount', '0').strip()
         try:
-            amount = float(amount_str)
+            amount = float(amount_str) if amount_str else 0.0
         except:
             continue
 
         date_str = tx.get('transaction_date')
         dt = parse_date(date_str)
-        if dt is None:
+        if not dt:
             continue
 
         year = dt.year
         customer = tx.get('customer_account_number')
-        if customer is None:
+        if not customer:
             continue
 
-        # Only consider invoice transactions (INV)
-        if tx.get('transaction_type') != 'INV':
-            continue
-
-        if customer not in spend:
-            spend[customer] = {}
-
-        if year not in spend[customer]:
-            spend[customer][year] = 0
-
+        spend.setdefault(customer, {}).setdefault(year, 0)
         spend[customer][year] += amount
 
     return spend
@@ -72,9 +64,9 @@ def top_customers_comparison():
 
     customers_current_year = []
     for customer, yearly_data in spend.items():
-        amt = yearly_data.get(current_year, 0)
-        if amt > 0:
-            customers_current_year.append((customer, amt))
+        current_amt = yearly_data.get(current_year, 0)
+        if current_amt > 0:
+            customers_current_year.append((customer, current_amt))
 
     customers_current_year.sort(key=lambda x: x[1], reverse=True)
     top_10 = customers_current_year[:10]
