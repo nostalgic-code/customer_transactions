@@ -20,7 +20,7 @@ def fetch_transactions():
         return []
 
 def parse_date(date_str):
-    for fmt in ("%m-%d-%Y", "%d %b %Y", "%H:%M:%S %d %b %Y"):
+    for fmt in ("%m-%d-%Y", "%d-%m-%Y", "%Y-%m-%d"):
         try:
             return datetime.strptime(date_str, fmt)
         except:
@@ -30,18 +30,21 @@ def parse_date(date_str):
 def aggregate_spend_by_year(transactions):
     spend = {}
     for tx in transactions:
-        if tx.get("transaction_type") != "INV":
+        if tx.get('transaction_type') != 'INV':
             continue
 
-        amount_str = tx.get('amount', '0').strip()
+        amount_str = tx.get('amount', '').strip()
+        if not amount_str:
+            continue
+
         try:
-            amount = float(amount_str) if amount_str else 0.0
+            amount = float(amount_str)
         except:
             continue
 
         date_str = tx.get('transaction_date')
         dt = parse_date(date_str)
-        if not dt:
+        if dt is None:
             continue
 
         year = dt.year
@@ -49,7 +52,12 @@ def aggregate_spend_by_year(transactions):
         if not customer:
             continue
 
-        spend.setdefault(customer, {}).setdefault(year, 0)
+        if customer not in spend:
+            spend[customer] = {}
+
+        if year not in spend[customer]:
+            spend[customer][year] = 0
+
         spend[customer][year] += amount
 
     return spend
@@ -62,11 +70,11 @@ def top_customers_comparison():
     current_year = datetime.now().year
     last_year = current_year - 1
 
-    customers_current_year = []
-    for customer, yearly_data in spend.items():
-        current_amt = yearly_data.get(current_year, 0)
-        if current_amt > 0:
-            customers_current_year.append((customer, current_amt))
+    customers_current_year = [
+        (customer, yearly.get(current_year, 0))
+        for customer, yearly in spend.items()
+        if yearly.get(current_year, 0) > 0
+    ]
 
     customers_current_year.sort(key=lambda x: x[1], reverse=True)
     top_10 = customers_current_year[:10]
@@ -85,17 +93,10 @@ def top_customers_comparison():
             'percentage_change': round(pct_change, 2) if pct_change is not None else None,
         })
 
-    return jsonify({'top_customers_comparison': result})
-
-
-@app.route('/debug_transactions', methods=['GET'])
-def debug_transactions():
-    tx = fetch_transactions()
     return jsonify({
-        'count': len(tx),
-        'sample': tx[:3]
+        'raw_top_10': result,
+        'count': len(result)
     })
-
 
 if __name__ == '__main__':
     app.run(debug=True)
