@@ -87,5 +87,15 @@ def top_customers_comparison():
 
     return jsonify({'top_customers_comparison': result})
 
+
+@app.route('/debug_transactions', methods=['GET'])
+def debug_transactions():
+    tx = fetch_transactions()
+    return jsonify({
+        'count': len(tx),
+        'sample': tx[:3]
+    })
+
+
 if __name__ == '__main__':
     app.run(debug=True)
