@@ -70,19 +70,23 @@ def top_customers_comparison():
     transactions = fetch_transactions()
     spend = aggregate_spend_by_year(transactions)
 
-    current_year = datetime.now().year
+    # Automatically determine the latest year with data
+    years = {year for yearly in spend.values() for year in yearly}
+    if not years:
+        return jsonify({"count": 0, "raw_top_10": []})
+    
+    current_year = max(years)
     last_year = current_year - 1
 
-    # Build top 10 customers list
     customers_current_year = [
         (customer, yearly.get(current_year, 0))
         for customer, yearly in spend.items()
         if yearly.get(current_year, 0) > 0
     ]
+
     customers_current_year.sort(key=lambda x: x[1], reverse=True)
     top_10 = customers_current_year[:10]
 
-    # Final response formatting
     result = []
     for customer, current_amt in top_10:
         last_amt = spend.get(customer, {}).get(last_year, 0)
@@ -97,12 +101,12 @@ def top_customers_comparison():
             'percentage_change': round(pct_change, 2) if pct_change is not None else None,
         })
 
-    print("✅ FINAL TOP 10:", result)  # DEBUG
-
     return jsonify({
+        'raw_top_10': result,
         'count': len(result),
-        'raw_top_10': result
+        'year_compared': f"{last_year} vs {current_year}"
     })
+
 
 if __name__ == '__main__':
     app.run(debug=True)
